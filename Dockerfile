@@ -1,8 +1,8 @@
 FROM unit:1.34.1-php8.3
 
-# Install dependencies
+# Install dependencies including supervisor
 RUN apt update && apt install -y \
-    curl unzip git libicu-dev libzip-dev libpng-dev libjpeg-dev libfreetype6-dev libssl-dev \
+    curl unzip git libicu-dev libzip-dev libpng-dev libjpeg-dev libfreetype6-dev libssl-dev supervisor \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) pcntl opcache pdo pdo_mysql intl zip gd exif ftp bcmath \
     && pecl install redis \
@@ -22,7 +22,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/local/bin/composer
 WORKDIR /var/www/html
 
 # Create necessary directories
-RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache
+RUN mkdir -p /var/www/html/storage /var/www/html/bootstrap/cache /var/log/supervisor
 RUN chown -R unit:unit /var/www/html/storage bootstrap/cache && chmod -R 775 /var/www/html/storage
 
 # Copy application
@@ -32,9 +32,13 @@ RUN chown -R unit:unit storage bootstrap/cache && chmod -R 775 storage bootstrap
 # Install dependencies
 RUN composer install --prefer-dist --optimize-autoloader --no-interaction
 
-# Copy Nginx Unit configuration
+# Copy configurations
 COPY unit.json /docker-entrypoint.d/unit.json
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Make start script executable
+RUN chmod +x /var/www/html/start.sh
 
 EXPOSE 8000
 
-CMD ["unitd", "--no-daemon"]
+CMD ["/var/www/html/start.sh"]
